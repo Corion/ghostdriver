@@ -460,6 +460,22 @@ ghostdriver.SessionReqHand = function(session) {
         res.respondBasedOnResult(_session, res, result);
     },
 
+    _canonicalURL= function( url ) {
+        var URL= require("./third_party/parseuri.js");
+        //console.log(''+url + " => " + JSON.stringify(URL.parse(url)));
+        var canonicalURL= URL.parse(url);
+        if( !canonicalURL.path || 0==canonicalURL.path.length ) {
+            // Add the trailing slash
+            canonicalURL.path='/';
+        };
+        var s=   canonicalURL.protocol + '://'
+               + (canonicalURL.authority ? (canonicalURL.authority) : '')
+               + (canonicalURL.path)
+               + (canonicalURL.query ? '?' + canonicalURL.query : '')
+               + (canonicalURL.anchor ? '#' + canonicalURL.anchor : '');
+        return s
+    },
+
     _postUrlCommand = function(req, res) {
         // Load the given URL in the Page
         var postObj = JSON.parse(req.post),
