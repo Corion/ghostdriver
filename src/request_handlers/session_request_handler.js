@@ -199,10 +199,10 @@ ghostdriver.SessionReqHand = function(session) {
         throw _errors.createInvalidReqInvalidCommandMethodEH(req);
     },
 
-    _createOnSuccessHandler = function(res) {
+    _createOnSuccessHandler = function(res,payload) {
         return function (status) {
             _log.debug("_SuccessHandler", "status: " + status);
-            res.success(_session.getId());
+            res.success(_session.getId(),payload);
         };
     },
 
@@ -487,12 +487,35 @@ ghostdriver.SessionReqHand = function(session) {
             // Switch to the main frame first
             currWindow.switchToMainFrame();
 
+            var canonicalURL= _canonicalURL(postObj.url);
+            // Create our placeholder for the response
+            var response= {
+                requestedURL: postObj.url,
+                finalURL: canonicalURL,
+                status: 500, // Well, if we don't know any better...
+            };
+
             // Load URL and wait for load to finish (or timeout)
-            currWindow.execFuncAndWaitForLoad(function() {
+            currWindow.execFuncAndWaitForLoad(
+                function() {
+                    currWindow.onResourceReceived = function(res) {
+                      var url= _canonicalURL(res.url);
+                      if ('end' == res.stage && url == response.finalURL) {
+                          if( 300 <= res.status && res.status <= 399 ) {
+                              // Update where we will end up next
+                              response.finalURL= _canonicalURL(res.redirectURL);
+                          } else {
+                            var passthrough= ["status", "headers", "statusText", "contentType", "time","url"];
+                            for( var i in passthrough  ) {
+                                response[passthrough[i]] = res[passthrough[i]];
+                            };
+                          };
+                      }
+                    };
                     currWindow.open(postObj.url.trim());
                 },
-                _createOnSuccessHandler(res),               //< success
-                function(errMsg) {                          //< failure/timeout
+                _createOnSuccessHandler(res,response),  //< success
+                function(errMsg) {                      //< failure/timeout
                     var errCode = errMsg === "timeout"
                         ? _errors.FAILED_CMD_STATUS.TIMEOUT
                         : _errors.FAILED_CMD_STATUS.UNKNOWN_ERROR;
