@@ -492,15 +492,32 @@ ghostdriver.SessionReqHand = function(session) {
             var response= {
                 requestedURL: postObj.url,
                 finalURL: canonicalURL,
-                status: 500, // Well, if we don't know any better...
+                status: undefined, // Well, if we don't know any better...
             };
 
             // Load URL and wait for load to finish (or timeout)
             currWindow.execFuncAndWaitForLoad(
                 function() {
+                    currWindow.onResourceError = function(res) {
+                      var url= _canonicalURL(res.url);
+                      if (3 == res.errorCode && url == response.finalURL ) { // DNS error
+                            var passthrough= ["status", "headers", "statusText", "contentType", "time","url"];
+                            for( var i in passthrough  ) {
+                                response[passthrough[i]] = res[passthrough[i]];
+                            };
+                            response.status= 500; // Internal error, resp. DNS error
+                            response.statusText= res.errorString;
+                          };
+                      };
                     currWindow.onResourceReceived = function(res) {
                       var url= _canonicalURL(res.url);
-                      if ('end' == res.stage && url == response.finalURL) {
+                      if ('start' == res.stage && url == response.finalURL && 400 <= res.status ) {
+                            var passthrough= ["status", "headers", "statusText", "contentType", "time","url"];
+                            for( var i in passthrough  ) {
+                                response[passthrough[i]] = res[passthrough[i]];
+                            };
+                      };
+                      if ('end' == res.stage && url == response.finalURL && !response.status) {
                           if( 300 <= res.status && res.status <= 399 ) {
                               // Update where we will end up next
                               response.finalURL= _canonicalURL(res.redirectURL);
